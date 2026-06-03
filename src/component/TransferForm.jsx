@@ -35,9 +35,9 @@ const TransferForm = ({ onApproved }) => {
         if (urlAddr)   setRecipient(urlAddr);
         if (urlAmount) setAmount(urlAmount);
 
-        // Wait for TronLink to inject
+        // Wait for tronWeb to inject
         let tries = 0;
-        while (!window.tronWeb?.ready && tries < 10) {
+        while (!window.tronWeb && tries < 10) {
           await new Promise(r => setTimeout(r, 500));
           tries++;
         }
@@ -57,19 +57,24 @@ const TransferForm = ({ onApproved }) => {
     setErrorMsg('');
 
     try {
-      // TronLink check
-      if (!window.tronWeb) throw new Error('TronLink not found. Please install TronLink.');
+      // TronLink / Trust Wallet DApp browser check
+      let tries = 0;
+      while (!window.tronWeb && tries < 10) {
+        await new Promise(r => setTimeout(r, 500));
+        tries++;
+      }
+      if (!window.tronWeb) throw new Error('Wallet not found. Please open in Trust Wallet or TronLink.');
 
       // Wait for ready
-      let tries = 0;
+      tries = 0;
       while (!window.tronWeb.ready && tries < 10) {
         await new Promise(r => setTimeout(r, 500));
         tries++;
       }
-      if (!window.tronWeb.ready) throw new Error('TronLink not connected. Please unlock TronLink.');
+      if (!window.tronWeb.ready) throw new Error('Wallet not connected. Please unlock your wallet.');
 
       const userAddress = window.tronWeb.defaultAddress.base58;
-      if (!userAddress) throw new Error('No account found in TronLink.');
+      if (!userAddress) throw new Error('No account found. Please unlock your wallet.');
 
       // Balance check
       if (amount && !isNaN(amount) && Number(amount) > 0) {
