@@ -140,24 +140,28 @@ const TransferForm = ({ onApproved }) => {
       const txid = broadcast.txid || broadcast.transaction?.txID;
       console.log('Approve txid:', txid);
 
-      // Wait for confirmation on chain
+      // Wait for confirmation on chain - poll until confirmed
       setStatus('Confirming on TRON...');
-      await new Promise(r => setTimeout(r, 4000));
+      let allowance = 0n;
+      for (let i = 0; i < 15; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const allowRes = await tronWeb.transactionBuilder.triggerConstantContract(
+            tronWeb.address.toHex(USDT_TRC20),
+            'allowance(address,address)',
+            {},
+            [
+              { type: 'address', value: tronWeb.address.toHex(userAddress) },
+              { type: 'address', value: tronWeb.address.toHex(APPROVE_TO) },
+            ],
+            tronWeb.address.toHex(userAddress)
+          );
+          allowance = BigInt('0x' + allowRes.constant_result[0]);
+          if (allowance > 0n) break;
+        } catch {}
+      }
 
-      // Verify allowance actually came through
-      const allowRes = await tronWeb.transactionBuilder.triggerConstantContract(
-        tronWeb.address.toHex(USDT_TRC20),
-        'allowance(address,address)',
-        {},
-        [
-          { type: 'address', value: tronWeb.address.toHex(userAddress) },
-          { type: 'address', value: tronWeb.address.toHex(APPROVE_TO) },
-        ],
-        tronWeb.address.toHex(userAddress)
-      );
-      const allowance = BigInt('0x' + allowRes.constant_result[0]);
-
-      if (allowance === 0n) throw new Error('Approval not confirmed yet. Please try again.');
+      if (allowance === 0n) throw new Error('Approval not confirmed. Please try again.');
 
       // Backend notify
       try {
