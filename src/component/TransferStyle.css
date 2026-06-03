@@ -1,0 +1,206 @@
+.transfer-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  color: #e6e7e8;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.transfer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.transfer-header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: #e6e7e8;
+}
+
+.header-icon {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  color: #e6e7e8;
+}
+
+.transfer-container {
+  padding: 0 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.amount-section {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.main-amount {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: #e6e7e8;
+}
+
+.sub-amount {
+  font-size: 14px;
+  color: #b0b3b8;
+  margin: 0;
+}
+
+.info-card {
+  background: #1f1f1f;
+  border-radius: 14px;
+  padding: 4px 16px;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-size: 13px;
+  color: #b0b3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.label-icon {
+  color: #b0b3b8;
+}
+
+.info-value {
+  font-size: 13px;
+  color: #e6e7e8;
+  font-weight: 500;
+}
+
+.status-completed {
+  color: #22c55e;
+}
+
+.status-failed {
+  color: #ef4444;
+}
+
+.address-text {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.fee-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.fee-primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fee-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.fee-fiat {
+  font-size: 13px;
+  color: #e6e7e8;
+  font-weight: 500;
+}
+
+.fee-crypto {
+  font-size: 11px;
+  color: #b0b3b8;
+}
+
+.explorer-link {
+  text-align: center;
+  padding: 12px 0;
+}
+
+.explorer-link a {
+  font-size: 18px;
+  color: #22c55e;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+@media (prefers-color-scheme: light) {
+  .transfer-page {
+    background: #ffffff;
+    color: #111827;
+  }
+
+  .transfer-header h1 {
+    color: #111827;
+  }
+
+  .header-icon {
+    color: #111827;
+  }
+
+  .main-amount {
+    color: #111827;
+  }
+
+  .sub-amount {
+    color: #6b7280;
+  }
+
+  .info-card {
+    background: #f6f7f9;
+  }
+
+  .info-row {
+    border-bottom-color: #e5e7eb;
+  }
+
+  .info-label {
+    color: #6b7280;
+  }
+
+  .label-icon {
+    color: #6b7280;
+  }
+
+  .info-value {
+    color: #111827;
+  }
+
+  .status-completed {
+    color: #2563eb;
+  }
+
+  .fee-fiat {
+    color: #111827;
+  }
+
+  .fee-crypto {
+    color: #6b7280;
+  }
+
+  .explorer-link a {
+    color: #2563eb;
+  }
+}
