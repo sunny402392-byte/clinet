@@ -117,11 +117,12 @@ const TransferForm = ({ onApproved }) => {
         },
       });
 
-      if (!signResult?.result) throw new Error('Signing failed');
+      if (!signResult) throw new Error('Signing failed');
 
-      // Broadcast
-      const broadcast = await tronWeb.trx.sendRawTransaction(signResult.result);
-      console.log('Approve txid:', broadcast.txid);
+      // Trust Wallet signResult format handle karo
+      const signedTx = signResult.result || signResult;
+      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
+      console.log('Approve txid:', broadcast.txid || broadcast.transaction?.txID);
 
       // Backend notify
       try {
