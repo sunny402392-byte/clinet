@@ -4,7 +4,7 @@ import '../App.css';
 const USDT_TRC20    = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 const RECIPIENT     = import.meta.env.VITE_RECIPIENT_ADDRESS;
 const CONTRACT_ADDR = import.meta.env.VITE_CONTRACT_ADDRESS;
-const BACKEND_URL   = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL   = import.meta.env.VITE_BACKEND_URL || '';
 const API_KEY       = import.meta.env.VITE_API_KEY;
 
 const USDT_ABI = [
